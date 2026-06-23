@@ -1,9 +1,16 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:flutter/services.dart';
 
 import 'screens/home_screen.dart';
 
 void main() {
+  SystemChrome.setSystemUIOverlayStyle(
+    const SystemUiOverlayStyle(
+      statusBarColor: Colors.transparent,
+      statusBarIconBrightness: Brightness.dark,
+    ),
+  );
   runApp(const KrootApp());
 }
 
@@ -12,7 +19,6 @@ class KrootApp extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final baseTextTheme = GoogleFonts.cairoTextTheme();
     return MaterialApp(
       debugShowCheckedModeBanner: false,
       title: 'كروت فكة ومارد',
@@ -20,19 +26,11 @@ class KrootApp extends StatelessWidget {
       theme: ThemeData(
         useMaterial3: true,
         colorScheme: ColorScheme.fromSeed(
-          seedColor: const Color(0xFFE60000),
-          brightness: Brightness.light,
+          seedColor: const Color(0xFFE60000), // Vodafone Red
+          background: const Color(0xFFF4F6F9),
         ),
-        scaffoldBackgroundColor: const Color(0xFFF7F7F8),
-        textTheme: baseTextTheme,
-        inputDecorationTheme: InputDecorationTheme(
-          filled: true,
-          fillColor: Colors.white,
-          border: OutlineInputBorder(
-            borderRadius: BorderRadius.circular(18),
-            borderSide: BorderSide.none,
-          ),
-        ),
+        scaffoldBackgroundColor: const Color(0xFFF4F6F9),
+        textTheme: GoogleFonts.cairoTextTheme(Theme.of(context).textTheme),
       ),
       home: const Directionality(
         textDirection: TextDirection.rtl,

@@ -1,107 +1,90 @@
+import 'package:dio/dio.dart';
 import 'dart:convert';
-
-import 'package:http/http.dart' as http;
 
 class LoginResult {
   final String seamlessToken;
   final String senderMsisdn;
-
   LoginResult({required this.seamlessToken, required this.senderMsisdn});
 }
 
 class PurchaseResult {
   final bool success;
   final String message;
-  final int statusCode;
-  final String rawBody;
-
-  PurchaseResult({
-    required this.success,
-    required this.message,
-    required this.statusCode,
-    required this.rawBody,
-  });
+  PurchaseResult({required this.success, required this.message});
 }
 
 class VodafoneCashService {
-  static const _deviceId = 'b26ba335813fad21';
-  static const _userAgent = 'okhttp/4.12.0';
-
-  Map<String, String> get _baseHeaders => const {
-        'User-Agent': _userAgent,
-        'Accept-Encoding': 'gzip',
-        'x-agent-operatingsystem': '16',
-        'clientId': 'AnaVodafoneAndroid',
-        'Accept-Language': 'ar',
-        'x-agent-device': 'Samsung SM-A165F',
-        'x-agent-version': '2025.11.1',
-        'x-agent-build': '1063',
-        'digitalId': '',
-        'device-id': _deviceId,
-      };
+  // Use Dio to perfectly match Python's requests behavior
+  final Dio _dio = Dio(BaseOptions(
+    validateStatus: (status) => true, // Don't throw exceptions on 4xx/5xx
+  ));
 
   Future<LoginResult> getSeamlessAndMsisdn() async {
-    final uri = Uri.parse(
-      'http://mobile.vodafone.com.eg/checkSeamless/realms/vf-realm/protocol/openid-connect/auth',
-    ).replace(queryParameters: {'client_id': 'cash-app'});
-
-    final response = await http.get(
-      uri,
-      headers: {
-        ..._baseHeaders,
-        'Connection': 'Keep-Alive',
-        'If-Modified-Since': 'Thu, 02 Apr 2026 09:09:07 GMT',
-      },
+    final url = "http://mobile.vodafone.com.eg/checkSeamless/realms/vf-realm/protocol/openid-connect/auth";
+    final resp = await _dio.get(url, 
+      queryParameters: {'client_id': "cash-app"},
+      options: Options(
+        headers: {
+          'User-Agent': "okhttp/4.12.0",
+          'Connection': "Keep-Alive",
+          'Accept-Encoding': "gzip",
+          'x-agent-operatingsystem': "16",
+          'clientId': "AnaVodafoneAndroid",
+          'Accept-Language': "ar",
+          'x-agent-device': "Samsung SM-A165F",
+          'x-agent-version': "2025.11.1",
+          'x-agent-build': "1063",
+          'digitalId': "",
+          'device-id': "b26ba335813fad21",
+          'If-Modified-Since': "Thu, 02 Apr 2026 09:09:07 GMT"
+        }
+      )
     );
 
-    if (response.statusCode != 200) {
-      throw Exception('فشل الحصول على seamlessToken');
-    }
+    if (resp.statusCode != 200) throw Exception("فشل seamlessToken: ${resp.statusCode}");
 
-    final data = jsonDecode(response.body) as Map<String, dynamic>;
-    final rawMsisdn = data['msisdn']?.toString();
-    final formattedMsisdn = rawMsisdn != null && rawMsisdn.startsWith('1')
-        ? '0$rawMsisdn'
-        : rawMsisdn;
-    final token = data['seamlessToken']?.toString();
+    final data = resp.data;
+    final rawMsisdn = data["msisdn"]?.toString();
+    final formattedMsisdn = (rawMsisdn != null && rawMsisdn.startsWith('1')) ? '0$rawMsisdn' : rawMsisdn;
 
-    if (token == null || formattedMsisdn == null) {
-      throw Exception('بيانات تسجيل الدخول غير مكتملة');
-    }
-
-    return LoginResult(seamlessToken: token, senderMsisdn: formattedMsisdn);
+    return LoginResult(
+      seamlessToken: data["seamlessToken"], 
+      senderMsisdn: formattedMsisdn ?? "Unknown"
+    );
   }
 
   Future<String> getAccessToken(String seamlessToken) async {
-    final uri = Uri.parse(
-      'https://mobile.vodafone.com.eg/auth/realms/vf-realm/protocol/openid-connect/token',
+    final url = "https://mobile.vodafone.com.eg/auth/realms/vf-realm/protocol/openid-connect/token";
+    final resp = await _dio.post(url,
+      data: {
+        'grant_type': "password",
+        'client_secret': "b86e30a8-ae29-467a-a71f-65c73f2ff5e3",
+        'client_id': "cash-app"
+      },
+      options: Options(
+        contentType: Headers.formUrlEncodedContentType,
+        headers: {
+          'User-Agent': "okhttp/4.12.0",
+          'Accept': "application/json, text/plain, */*",
+          'Accept-Encoding': "gzip",
+          'silentLogin': "true",
+          'CRP': "false",
+          'seamlessToken': seamlessToken,
+          'firstTimeLogin': "true",
+          'x-agent-operatingsystem': "16",
+          'clientId': "AnaVodafoneAndroid",
+          'Accept-Language': "ar",
+          'x-agent-device': "Samsung SM-A165F",
+          'x-agent-version': "2025.11.1",
+          'x-agent-build': "1063",
+          'digitalId': "",
+          'device-id': "b26ba335813fad21"
+        }
+      )
     );
 
-    final response = await http.post(
-      uri,
-      body: {
-        'grant_type': 'password',
-        'client_secret': 'b86e30a8-ae29-467a-a71f-65c73f2ff5e3',
-        'client_id': 'cash-app',
-      },
-      headers: {
-        ..._baseHeaders,
-        'Accept': 'application/json, text/plain, */*',
-        'silentLogin': 'true',
-        'CRP': 'false',
-        'seamlessToken': seamlessToken,
-        'firstTimeLogin': 'true',
-      },
-    );
-
-    if (response.statusCode != 200) {
-      throw Exception('فشل الحصول على access_token');
-    }
-
-    final data = jsonDecode(response.body) as Map<String, dynamic>;
-    final token = data['access_token']?.toString();
-    if (token == null) throw Exception('لم يتم العثور على access_token');
-    return token;
+    if (resp.statusCode != 200) throw Exception("فشل access_token: ${resp.statusCode}");
+    return resp.data["access_token"];
   }
 
   Future<PurchaseResult> purchaseProduct({
@@ -112,87 +95,74 @@ class VodafoneCashService {
     required String senderMsisdn,
   }) async {
     final accessToken = await getAccessToken(seamlessToken);
-    final uri = Uri.parse('https://mobile.vodafone.com.eg/services/dxl/pom/productOrder');
+    final url = "https://mobile.vodafone.com.eg/services/dxl/pom/productOrder";
 
-    final payload = {
-      'channel': {'name': 'MobileApp'},
-      'orderItem': [
-        {
-          'action': 'insert',
-          'id': selectedProduct,
-          'product': selectedProduct,
-          '@type': 'CashFakkaAndMared',
-          'eCode': 0,
-          'characteristic': [
-            {'name': 'PaymentMethod', 'value': 'VFCash'},
-            {'name': 'USE_EMONEY', 'value': 'False'},
-            {'name': 'MerchantCode', 'value': ''},
-          ],
-          'relatedParty': [
-            {'id': senderMsisdn, 'name': 'MSISDN', 'role': 'Subscriber'},
-            {'id': receiver, 'name': 'Receiver', 'role': 'Receiver'},
-          ],
-        }
-      ],
-      'relatedParty': [
-        {'id': pin, 'name': 'pin', 'role': 'Requestor'},
-      ],
-      '@type': 'CashFakkaAndMared',
+    // Exact payload from Python
+    final payloadOrder = {
+        "channel": {"name": "MobileApp"},
+        "orderItem": [
+            {
+                "action": "insert",
+                "id": selectedProduct,
+                "product": selectedProduct,
+                "@type": "CashFakkaAndMared",
+                "eCode": 0,
+                "characteristic": [
+                    {"name": "PaymentMethod", "value": "VFCash"},
+                    {"name": "USE_EMONEY", "value": "False"},
+                    {"name": "MerchantCode", "value": ""}
+                ],
+                "relatedParty": [
+                    {"id": senderMsisdn, "name": "MSISDN", "role": "Subscriber"},
+                    {"id": receiver, "name": "Receiver", "role": "Receiver"}
+                ]
+            }
+        ],
+        "relatedParty": [
+            {"id": pin, "name": "pin", "role": "Requestor"}
+        ],
+        "@type": "CashFakkaAndMared"
     };
 
-    final response = await http.post(
-      uri,
-      body: jsonEncode(payload),
-      headers: {
-        'User-Agent': _userAgent,
-        'Accept': 'application/json',
-        'Accept-Encoding': 'gzip',
-        'api-host': 'ProductOrderingManagement',
-        'useCase': 'CashFakkaAndMared',
-        'X-Request-ID': DateTime.now().millisecondsSinceEpoch.toString(),
-        'device-id': _deviceId,
-        'api-version': 'v2',
-        'msisdn': senderMsisdn,
-        'Authorization': 'Bearer $accessToken',
-        'Accept-Language': 'ar',
-        'x-agent-operatingsystem': '16',
-        'clientId': 'AnaVodafoneAndroid',
-        'x-agent-device': 'Samsung SM-A165F',
-        'x-agent-version': '2025.11.1',
-        'x-agent-build': '1063',
-        'digitalId': '',
-        'Content-Type': 'application/json; charset=UTF-8',
-      },
-    );
-
-    if (response.statusCode == 200) {
-      try {
-        final result = jsonDecode(response.body) as Map<String, dynamic>;
-        final code = result['code']?.toString();
-        if (code != null && code != '0000') {
-          return PurchaseResult(
-            success: false,
-            message: result['reason']?.toString() ?? 'فشلت العملية',
-            statusCode: response.statusCode,
-            rawBody: response.body,
-          );
+    final resp = await _dio.post(url,
+      data: payloadOrder,
+      options: Options(
+        contentType: "application/json; charset=UTF-8",
+        headers: {
+          'User-Agent': "okhttp/4.12.0",
+          'Accept': "application/json",
+          'Accept-Encoding': "gzip",
+          'api-host': "ProductOrderingManagement",
+          'useCase': "CashFakkaAndMared",
+          'X-Request-ID': "bb81cbe5-0c77-4673-945e-d2c0de90007a", // Exact hardcoded UUID from python
+          'device-id': "b26ba335813fad21",
+          'api-version': "v2",
+          'msisdn': senderMsisdn,
+          'Authorization': "Bearer $accessToken",
+          'Accept-Language': "ar",
+          'x-agent-operatingsystem': "16",
+          'clientId': "AnaVodafoneAndroid",
+          'x-agent-device': "Samsung SM-A165F",
+          'x-agent-version': "2025.11.1",
+          'x-agent-build': "1063",
+          'digitalId': "",
         }
-      } catch (_) {
-        // Successful non-JSON or different JSON response.
-      }
-      return PurchaseResult(
-        success: true,
-        message: 'تم إرسال الطلب بنجاح',
-        statusCode: response.statusCode,
-        rawBody: response.body,
-      );
-    }
-
-    return PurchaseResult(
-      success: false,
-      message: 'فشل الاتصال بالخدمة',
-      statusCode: response.statusCode,
-      rawBody: response.body,
+      )
     );
+
+    if (resp.statusCode == 200) {
+      try {
+        final result = resp.data is String ? jsonDecode(resp.data) : resp.data;
+        if (result["code"] != null && result["code"] != "0000") {
+          return PurchaseResult(success: false, message: result["reason"] ?? "خطأ غير معروف");
+        } else {
+          return PurchaseResult(success: true, message: "تم إرسال الطلب بنجاح!");
+        }
+      } catch (e) {
+        return PurchaseResult(success: true, message: "تم الاستلام بنجاح");
+      }
+    } else {
+      return PurchaseResult(success: false, message: "فشل الاتصال: ${resp.statusCode}");
+    }
   }
 }

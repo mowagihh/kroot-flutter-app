@@ -1,5 +1,5 @@
 name: kroot_flutter_app
-description: Arabic Flutter app converted from kroot.py for Fakka and Mared purchase requests.
+description: Modern Vodafone Cash App
 publish_to: 'none'
 version: 1.0.0+1
 
@@ -9,9 +9,10 @@ environment:
 dependencies:
   flutter:
     sdk: flutter
-  http: ^1.2.2
+  dio: ^5.4.3
+  uuid: ^4.3.3
   google_fonts: ^6.2.1
-  intl: ^0.19.0
+  animate_do: ^3.3.4
   cupertino_icons: ^1.0.8
 
 dev_dependencies:
@@ -21,3 +22,5 @@ dev_dependencies:
 
 flutter:
   uses-material-design: true
+  assets:
+    - assets/
