@@ -30,7 +30,7 @@ jobs:
           cache: true
 
       - name: Generate Flutter platform files
-        run: flutter create --platforms=android .
+        run: flutter create --platforms=android --project-name kroot_flutter_app .
 
       - name: Install dependencies
         run: flutter pub get
